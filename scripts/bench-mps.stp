@@ -1,0 +1,53 @@
+
+private global begin_timestamp = 0
+
+private global arena_enter_timestamp = 0
+private global arena_locked_time
+
+private global trace_flip_begin_timestamp = 0
+private global trace_flip_time
+
+probe process.function("ArenaEnter")
+{
+  arena_enter_timestamp = gettimeofday_us ()
+}
+
+probe process.function("ArenaLeave")
+{
+  duration = gettimeofday_us () - arena_enter_timestamp
+  arena_locked_time <<< duration
+}
+
+probe process.statement("traceFlip@trace.c:633")
+{
+  # print ("TraceFlipBegin", "\n");
+  trace_flip_begin_timestamp = gettimeofday_us()
+}
+
+probe process.statement("traceFlip@trace.c:683")
+{
+  # print ("TraceFlipEnd: ", duration, "us\n");
+  duration = gettimeofday_us() - trace_flip_begin_timestamp
+  trace_flip_time <<< duration
+}
+
+probe begin
+{
+  begin_timestamp = gettimeofday_us ()
+}
+
+probe end
+{
+  elapsed = gettimeofday_us () - begin_timestamp;
+  emacs = @1
+  benchmark = @2
+
+  printf ("%s,%s,%u.%06u,0,0,0,%u,%u,%u,%u,%u\n",
+	  emacs, benchmark,
+	  elapsed / 1000000, elapsed % 1000000,
+	  @sum(arena_locked_time),
+	  @avg(arena_locked_time),
+	  @max(arena_locked_time),
+	  @min(arena_locked_time),
+	  @count(trace_flip_time))
+}

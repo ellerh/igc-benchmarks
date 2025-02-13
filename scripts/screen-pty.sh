@@ -1,7 +1,5 @@
 #!/usr/bin/bash
 
-set -eu
-
 SCREENPIPE=$(mktemp -u)
 mkfifo "$SCREENPIPE"
 

@@ -2,10 +2,11 @@
 
 set -eu
 
-declare -a EMACSES=(master no-mps igc)
+declare -a EMACSES=(master igc)
 declare -a ELFILES=(scroll boehm-gc hash-equal hash-eql hash-eq compile print)
-REPEAT=3
+REPEAT=1
 CSVFILE=results.csv
+TRACETOOL=tracetool_stap
 
 ulimit -d $((1500 * 1024))
 
@@ -29,18 +30,44 @@ function kill_time_children {
 
 CLEANUP_ACTIONS+=(kill_time_children)
 
+function tracetool_gnutime {
+    local output=$1 emacs=$2 benchmark=$3
+    shift 3
+    /usr/bin/time --output "$output" --append \
+		  --format "$emacs,$benchmark,%e,%U,%S,%M,0,0,0,0,0" \
+		  "$@"
+}
+
+function tracetool_stap {
+    local output=$1 emacs=$2 benchmark=$3
+    local features=$(../emacses/$emacs \
+			 -Q -batch \
+			 -eval '(princ system-configuration-features)')
+    local stpfile
+    case "$features" in
+	*\ MPS\ *)  stpfile=bench-mps.stp ;;
+	*) stpfile=bench-master.stp ;;
+    esac
+    shift 3
+    local tmpfile=$(mktemp)
+    CLEANUP_ACTIONS+=("rm '$tmpfile'")
+    stap -c "$*" -o "$tmpfile" $stpfile "$emacs" "$benchmark"
+    cat "$tmpfile" >> "$output"
+}
+
 if [ -e "$CSVFILE" ]; then
     mv --backup=numbered "$CSVFILE" "$CSVFILE".old
 fi
 
-printf "emacs,benchmark,elapsed,user,sys,rss-max\n" >"$CSVFILE"
+printf "emacs,benchmark,\
+elapsed,user,sys,rss-max,\
+gc-sum,gc-avg,gc-max,gc-min,gc-count\n" >"$CSVFILE"
+
 for EMACS in "${EMACSES[@]}" ; do
     for ELFILE in "${ELFILES[@]}" ; do
 	for I in $(seq $REPEAT) ; do
-	    printf "$EMACS $ELFILE $I ..." >&2
-	    /usr/bin/time \
-		--output "$CSVFILE" --append \
-		--format "$EMACS,$ELFILE,%e,%U,%S,%M" \
+	    printf "$EMACS $ELFILE $I ..." >&2 
+	    $TRACETOOL "$CSVFILE" "$EMACS" "$ELFILE" \
 		"../emacses/$EMACS" -Q -nw -t "$SCREENPTY" \
 		-l "../elisp/${ELFILE}.elc" \
 		-f main 2>/dev/null &

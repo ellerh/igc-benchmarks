@@ -1,0 +1,47 @@
+
+private global gc_time
+
+private global gc_start_timestamp = 0
+private global gc_depth = 0
+
+private global begin_timestamp = 0
+
+probe process.statement("garbage_collect@alloc.c:5942")
+{
+  # print ("-> garbage_collect", "\n");
+  if (gc_depth == 0) {
+    gc_start_timestamp = gettimeofday_us ()
+    gc_depth = 1
+  }
+}
+
+probe process.statement("garbage_collect@alloc.c:6113")
+{
+  # print ("<- garbage_collect", "\n");
+  if (gc_depth == 1) {
+    duration = gettimeofday_us () - gc_start_timestamp
+    gc_time <<< duration
+    gc_depth = 0
+  }
+}
+
+probe begin
+{
+  begin_timestamp = gettimeofday_us ()
+}
+
+probe end
+{
+  elapsed = gettimeofday_us () - begin_timestamp;
+  emacs = @1
+  benchmark = @2
+
+  printf ("%s,%s,%u.%06u,0,0,0,%u,%u,%u,%u,%u\n",
+	  emacs, benchmark,
+	  elapsed / 1000000, elapsed % 1000000,
+	  @sum(gc_time),
+	  @avg(gc_time),
+	  @max(gc_time),
+	  @min(gc_time),
+	  @count(gc_time))
+}

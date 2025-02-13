@@ -9,6 +9,6 @@
       (delete-file tmpfile))))
 
 (defun main ()
-  (dotimes (_ 4)
+  (dotimes (_ 13)
     (compile-comp))
   (kill-emacs))
