@@ -16,7 +16,7 @@ where CMD can be one of:
   b/e-rel <db> <base> <col>   	same as b/e but for relative values 
   plot-rel <db> <base> <col>  	same as plot but for realtive values
 
-<col> can be one of real,user,sys or rss_max.
+<col> can be one of real,user,sys,rss_max,traced_time,ncollections.
 
 " "$PROG"
 }
@@ -24,17 +24,14 @@ where CMD can be one of:
 function full {
     local DB=$1
     sqlite3 -cmd ".mode column" \
-	    -cmd "select benchmark,emacs,real,user,sys,rss_max,
-	    	 	 gc_sum,gc_avg,gc_max,gc_min,gc_count
-	    	  from results
-		  order by benchmark,emacs
+	    -cmd "select * from results order by benchmark,emacs
 " "$DB" </dev/null 
 }
 
 function avg {
     local DB=$1
     sqlite3 -cmd ".mode column" \
-	    -cmd "select * from results_avg order by benchmark,emacs" \
+	    -cmd "select * from results_avg_round order by benchmark,emacs" \
 	    "$DB" </dev/null 
 }
 
@@ -70,7 +67,7 @@ select emacs,string_agg(format('%*s', len, r), ' ' order by benchmark)
 function check_column {
     local COL=$1
     case "$COL" in
-	real|user|sys|rss_max|gc_sum|gc_avg|gc_max|gc_min|gc_count);;
+	real|user|sys|rss_max|traced_time|ncollections);;
 	*)
 	    printf "Invalid column: %s\n" "$COL"
 	    exit 2;;
@@ -79,8 +76,8 @@ function check_column {
 
 function check_base {
     local DB=$1 BASE=$2
-    if [ $(sqlite3 "$DB" "select ('$BASE' in
-       	 	   	 	 	  (select distinct emacs from results))") \
+    if [ $(sqlite3 "$DB" \
+	   "select ('$BASE' in (select distinct emacs from results))") \
 	 != "1" ] ; then
        printf "Invalid base: %s\n" "$BASE" 
        exit 3
@@ -107,16 +104,14 @@ function main {
 		    check_base "$2" "$3"
 		    benchmark_by_emacs "$2" \
 				       "(select * from results_rel_round
-				          where base='$3')
-" \
+				          where base='$3')" \
 				       "$4";;
 		"4 plot-rel")
 		    check_column "$4"
 		    check_base "$2" "$3"
 		    python3 bardiagram.py "$2" \
 				       "(select * from results_rel_round
-				          where base='$3')
-" \
+				          where base='$3')" \
 				       "$4";;
 		*) usage;;
 	    esac;;

@@ -1,33 +1,33 @@
 
-private global gc_time
-
-private global gc_start_timestamp = 0
-private global gc_depth = 0
-
 private global begin_timestamp = 0
 
-probe process.statement("garbage_collect@alloc.c:5942")
+probe begin { begin_timestamp = gettimeofday_us () }
+
+private global rss_max = 0
+private global utime = 0
+private global stime = 0
+private global gcs_done = 0
+private global gc_elapsed = 0
+
+probe process.function ("Fkill_emacs@emacs.c")
 {
-  # print ("-> garbage_collect", "\n");
-  if (gc_depth == 0) {
-    gc_start_timestamp = gettimeofday_us ()
-    gc_depth = 1
-  }
+  task = task_current();
+  rss_max = task->mm->hiwater_rss
+  utime = task->utime
+  stime = task->stime
+  gcs_done = $globals->f_gcs_done
+  gc_elapsed = @cast($globals->f_Vgc_elapsed - $Lisp_Float,
+		     "Lisp_Float")->u->data
 }
 
-probe process.statement("garbage_collect@alloc.c:6113")
+function us_to_string(d:long)
 {
-  # print ("<- garbage_collect", "\n");
-  if (gc_depth == 1) {
-    duration = gettimeofday_us () - gc_start_timestamp
-    gc_time <<< duration
-    gc_depth = 0
-  }
+  return sprintf ("%u.%06u", d / 1000000, d % 1000000)
 }
 
-probe begin
+function ns_to_string(d:long)
 {
-  begin_timestamp = gettimeofday_us ()
+  return sprintf ("%u.%09u", d / 1000000000, d % 1000000000)
 }
 
 probe end
@@ -36,12 +36,12 @@ probe end
   emacs = @1
   benchmark = @2
 
-  printf ("%s,%s,%u.%06u,0,0,0,%u,%u,%u,%u,%u\n",
+  printf ("%s,%s,%s,%s,%s,%u,%s,%u\n",
 	  emacs, benchmark,
-	  elapsed / 1000000, elapsed % 1000000,
-	  @sum(gc_time),
-	  @avg(gc_time),
-	  @max(gc_time),
-	  @min(gc_time),
-	  @count(gc_time))
+	  us_to_string (elapsed),
+	  ns_to_string (utime),
+	  ns_to_string (stime),
+	  rss_max * mem_page_size() / 1024,
+	  fp_to_string (gc_elapsed, 3),
+	  gcs_done)
 }

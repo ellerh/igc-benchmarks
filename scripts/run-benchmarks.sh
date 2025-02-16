@@ -61,7 +61,7 @@ fi
 
 printf "emacs,benchmark,\
 elapsed,user,sys,rss-max,\
-gc-sum,gc-avg,gc-max,gc-min,gc-count\n" >"$CSVFILE"
+traced-time,ncollections\n" >"$CSVFILE"
 
 for EMACS in "${EMACSES[@]}" ; do
     for ELFILE in "${ELFILES[@]}" ; do

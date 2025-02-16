@@ -2,15 +2,12 @@
 create table results (
   emacs text not null,
   benchmark text not null,
-  real real not null,
-  user real not null,
-  sys real not null,
-  rss_max integer not null,
-  gc_sum integer not null,
-  gc_avg integer not null,
-  gc_max integer not null,
-  gc_min integer not null,
-  gc_count integer not null
+  real real not null,		-- seconds
+  user real not null,		-- seconds
+  sys real not null,		-- seconds
+  rss_max integer not null,	-- KB
+  traced_time real not null,	-- seconds
+  ncollections integer not null	-- seconds
 ) strict;
 
 create view results_avg as
@@ -19,13 +16,20 @@ create view results_avg as
 	 avg(user) user,
 	 avg(sys) sys,
 	 avg(rss_max) rss_max,
-	 avg(gc_sum) gc_sum,
-	 avg(gc_avg) gc_avg,
-	 avg(gc_max) gc_max,
-	 avg(gc_min) gc_min,
-	 avg(gc_count) gc_count
+	 avg(traced_time) traced_time,
+	 avg(ncollections) ncollections
     from results
    group by benchmark, emacs;
+
+create view results_avg_round as
+  select benchmark, emacs,
+	 round(real, 2) real,
+	 round(user, 2) user,
+	 round(sys, 2) sys,
+	 round(rss_max, 1) rss_max,
+	 round(traced_time, 2) traced_time,
+	 round(ncollections, 1) ncollections
+    from results_avg ;
 
 create view results_rel as
   select benchmark,
@@ -35,11 +39,8 @@ create view results_rel as
 	 r.user/base.user user,
 	 r.sys/base.sys sys,
  	 r.rss_max/base.rss_max rss_max,
-	 r.gc_sum/base.gc_sum gc_sum,
-	 r.gc_avg/base.gc_avg gc_avg,
-	 r.gc_max/base.gc_max gc_max,
-	 r.gc_min/base.gc_min gc_min,
-	 r.gc_count/base.gc_count gc_count
+	 r.traced_time/base.traced_time traced_time,
+	 r.ncollections/base.ncollections ncollections
     from results_avg r join results_avg base using (benchmark);
 
 create view results_rel_round as
@@ -47,6 +48,8 @@ create view results_rel_round as
 	 round(real, 2) real,
 	 round(user, 2) user,
 	 round(sys, 2) sys,
-	 round(rss_max, 2) rss_max
+	 round(rss_max, 2) rss_max,
+	 round(traced_time, 2) traced_time,
+	 round(ncollections, 1) ncollections
     from results_rel;
 

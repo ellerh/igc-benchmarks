@@ -1,39 +1,33 @@
 
 private global begin_timestamp = 0
 
-private global arena_enter_timestamp = 0
-private global arena_locked_time
+probe begin { begin_timestamp = gettimeofday_us () }
 
-private global trace_flip_begin_timestamp = 0
-private global trace_flip_time
+private global rss_max = 0
+private global utime = 0
+private global stime = 0
+private global ncollections = 0
+private global traced_time = 0
 
-probe process.function("ArenaEnter")
+probe process.function("Fkill_emacs@emacs.c")
 {
-  arena_enter_timestamp = gettimeofday_us ()
+  task = task_current();
+  rss_max = task->mm->hiwater_rss
+  utime = task->utime
+  stime = task->stime
+  arena = @var("global_igc@igc.c")->arena
+  ncollections = arena->historyStruct->epoch
+  traced_time = arena->tracedTime
 }
 
-probe process.function("ArenaLeave")
+function us_to_string(d:long)
 {
-  duration = gettimeofday_us () - arena_enter_timestamp
-  arena_locked_time <<< duration
+  return sprintf ("%u.%06u", d / 1000000, d % 1000000)
 }
 
-probe process.statement("traceFlip@trace.c:633")
+function ns_to_string(d:long)
 {
-  # print ("TraceFlipBegin", "\n");
-  trace_flip_begin_timestamp = gettimeofday_us()
-}
-
-probe process.statement("traceFlip@trace.c:683")
-{
-  # print ("TraceFlipEnd: ", duration, "us\n");
-  duration = gettimeofday_us() - trace_flip_begin_timestamp
-  trace_flip_time <<< duration
-}
-
-probe begin
-{
-  begin_timestamp = gettimeofday_us ()
+  return sprintf ("%u.%09u", d / 1000000000, d % 1000000000)
 }
 
 probe end
@@ -42,12 +36,12 @@ probe end
   emacs = @1
   benchmark = @2
 
-  printf ("%s,%s,%u.%06u,0,0,0,%u,%u,%u,%u,%u\n",
+  printf ("%s,%s,%s,%s,%s,%u,%s,%u\n",
 	  emacs, benchmark,
-	  elapsed / 1000000, elapsed % 1000000,
-	  @sum(arena_locked_time),
-	  @avg(arena_locked_time),
-	  @max(arena_locked_time),
-	  @min(arena_locked_time),
-	  @count(trace_flip_time))
+	  us_to_string (elapsed),
+	  ns_to_string (utime),
+	  ns_to_string (stime),
+	  rss_max * mem_page_size() / 1024,
+	  fp_to_string (traced_time, 3),
+	  ncollections);
 }
