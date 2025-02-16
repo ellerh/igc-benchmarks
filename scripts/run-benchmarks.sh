@@ -8,7 +8,7 @@ REPEAT=1
 CSVFILE=results.csv
 TRACETOOL=tracetool_stap
 
-ulimit -d $((1500 * 1024))
+ulimit -d $((512 * 1024))
 
 source cleanup.sh
 source screen-pty.sh

@@ -31,8 +31,8 @@
       (print pattern (current-buffer)))))
 
 (defun main ()
-  (let ((pattern (fprint-init 10 8 *fprint-test-atoms*)))
-    (dotimes (_ 5)
+  (let ((pattern (fprint-init 9 8 *fprint-test-atoms*)))
+    (dotimes (_ 20)
       (let ((file (make-temp-file "fprint.")))
 	(unwind-protect
 	    (fprint/pretty pattern file)
