@@ -110,9 +110,15 @@ function main {
 		    check_column "$4"
 		    check_base "$2" "$3"
 		    python3 bardiagram.py "$2" \
-				       "(select * from results_rel_round
-				          where base='$3')" \
-				       "$4";;
+			    "(select * from results_rel where base='$3')" \
+			    "$4";;
+		"4 plot-rel-diff")
+		    check_column "$4"
+		    check_base "$2" "$3"
+		    python3 bardiagram.py "$2" \
+			    "(select * from results_rel_diff
+			       where base='$3')" \
+			    "$4";;
 		*) usage;;
 	    esac;;
 	*) usage;;

@@ -43,6 +43,18 @@ create view results_rel as
 	 r.ncollections/base.ncollections ncollections
     from results_avg r join results_avg base using (benchmark);
 
+create view results_rel_diff as
+  select benchmark,
+	 r.emacs emacs,
+	 base.emacs base,
+       	 r.real/base.real - 1 real,
+	 r.user/base.user - 1 user,
+	 r.sys/base.sys - 1 sys,
+ 	 r.rss_max/base.rss_max - 1 rss_max,
+	 r.traced_time/base.traced_time - 1 traced_time,
+	 r.ncollections/base.ncollections - 1 ncollections
+    from results_avg r join results_avg base using (benchmark);
+
 create view results_rel_round as
   select benchmark, emacs, base,
 	 round(real, 2) real,
