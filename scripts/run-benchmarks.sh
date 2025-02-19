@@ -34,7 +34,7 @@ function tracetool_gnutime {
     local output=$1 emacs=$2 benchmark=$3
     shift 3
     /usr/bin/time --output "$output" --append \
-		  --format "$emacs,$benchmark,%e,%U,%S,%M,0,0,0,0,0" \
+		  --format "$emacs,$benchmark,%e,%U,%S,%M,0,0" \
 		  "$@"
 }
 
