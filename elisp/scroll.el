@@ -9,7 +9,9 @@
 	(t
 	 (funcall finally))))
 
-(defun enqueue-unread-events ()
+(defun enqueue-unread-events (buffer)
+  (pop-to-buffer buffer)
+  (delete-other-windows)
   (setq unread-command-events
 	(append (make-list 20 ?\C-v)
 		(apply #'append (make-list 5 '(? ?v) )))))
@@ -18,10 +20,12 @@
   (cond ((= n 0) (kill-emacs))
 	(t
 	 (find-file (expand-file-name "src/xdisp.c" source-directory))
-	 (repeat-with-timer 100 #'enqueue-unread-events
-			    (lambda ()
-			      (kill-buffer "xdisp.c")
-			      (start (1- n)))))))
+	 (let ((buffer (current-buffer)))
+	   (repeat-with-timer 100
+			      (lambda () (enqueue-unread-events buffer))
+			      (lambda ()
+				(kill-buffer buffer)
+				(start (1- n))))))))
 
 (defun main ()
   (start 3))
