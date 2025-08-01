@@ -1,14 +1,5 @@
 ;; -*- lexical-binding: t -*-
 
-(defun repeat-with-timer (repeat fun finally)
-  (cond ((> repeat 0)
-	 (run-with-idle-timer 0.01 nil
-			      (lambda ()
-				(funcall fun)
-				(repeat-with-timer (1- repeat) fun finally))))
-	(t
-	 (funcall finally))))
-
 (defun enqueue-unread-events (buffer)
   (pop-to-buffer buffer)
   (delete-other-windows)
@@ -16,17 +7,27 @@
 	(append (make-list 20 ?\C-v)
 		(apply #'append (make-list 5 '(? ?v) )))))
 
-(defun start (n)
-  (cond ((= n 0) (kill-emacs))
-	(t
-	 (find-file (expand-file-name "src/xdisp.c" source-directory))
-	 (let ((buffer (current-buffer)))
-	   (repeat-with-timer 100
-			      (lambda () (enqueue-unread-events buffer))
-			      (lambda ()
-				(kill-buffer buffer)
-				(start (1- n))))))))
+(defun scroll-timer-function (state buffer done)
+  (let ((timer (car state))
+	(n (cdr state)))
+    (cond ((and (= n 0) (not unread-command-events))
+	   (cancel-timer timer)
+	   (kill-buffer buffer)
+	   (funcall done))
+	  ((not unread-command-events)
+	   (enqueue-unread-events buffer)
+	   (setcdr state (1- n))))))
+
+(defun start (n done)
+  (find-file (expand-file-name "src/xdisp.c" source-directory))
+  (let* ((buffer (current-buffer))
+	 (state (cons nil n))
+	 (timer (run-with-idle-timer 0.1 t #'scroll-timer-function state buffer
+				     done)))
+    (setcar state timer)))
+
 
 (defun main ()
-  (start 3))
+  (start 40 #'kill-emacs))
+
 
