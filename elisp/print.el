@@ -32,7 +32,7 @@
 
 (defun main ()
   (let ((pattern (fprint-init 9 8 *fprint-test-atoms*)))
-    (dotimes (_ 20)
+    (dotimes (_ 7)
       (let ((file (make-temp-file "fprint.")))
 	(unwind-protect
 	    (fprint/pretty pattern file)

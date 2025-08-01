@@ -12,7 +12,7 @@
 	     table)))
 
 (defun main ()
-  (dotimes (_ 150)
+  (dotimes (_ 40)
     (hash-conses 100000))
   (kill-emacs))
 
