@@ -27,7 +27,8 @@
     (setcar state timer)))
 
 
+(defun main2 ()
+  (start 80 (lambda () (stp-end) (kill-emacs))))
+
 (defun main ()
-  (start 40 #'kill-emacs))
-
-
+  (start 80 #'kill-emacs))
