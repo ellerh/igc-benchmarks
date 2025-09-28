@@ -1,0 +1,93 @@
+This directory contains some benchmarks for the feature/igc branch.
+There are three directories:
+
+  elisp
+  scripts
+  emacses
+
+The elisp directory contains the benchmark programs.  The scripts
+directory contains various scripts to execute the benchmarks and to
+report the results.  The emacses directory contains symbolic links or
+scripts for various Emacs configurations.
+
+Setting up symbolic links
+=========================
+
+The scripts assume that the emacses directory contains the Emacs
+configurations to use for the benchmarks.  For example, to use an
+Emacs built from the feature/igc branch and one from the master branch
+you should do something like:
+
+  cd emacses
+  ln -s /path/to/feature/igc/src/emacs igc
+  ln -s /path/to/master/src/emacs master
+
+Running benchmarks
+==================
+
+Benchmarks can be executed in the scripts directory like so:
+
+  cd scripts
+  bash run-benchmarks.sh igc
+
+Here igc is one of the files in the emacses directory.  This should
+print something like:
+
+  igc,scroll,18.40,10.17,0.09,66920
+  igc,boehm-gc,5.98,5.65,0.31,201616
+  igc,hash-equal,8.73,7.83,0.85,196576
+  ...
+
+The results are also saved in the file results.csv.
+
+The -b option can be used to select a single or a few benchmarks. For
+example:
+
+  bash run-benchmarks.sh -b boehm-gc -b primes igc
+
+executes the boehm-gc and primes benchmarks.
+
+Saving results in a database
+============================
+
+To compare the results of different Emacs configurations, the results
+should be stored in a Sqlite database.  An empty database can be
+created with:
+
+  cd scripts
+  bash create-results-db.sh
+
+This creates a file results.sqlite.  The results that
+run-benchmarks.sh stores in the file results.csv can then be imported
+into the database with:
+
+  bash csv-import.sh
+
+Reports
+=======
+
+The report.sh script can be used to create various reports from the
+results in the database.  E.g. 
+
+  bash report.sh b/e real
+
+produces output like:
+
+              boehm-gc compile hash-eq pidigits primes print scroll string
+  igc             5.98   26.31    2.78     1.14   5.07  3.67  18.40   1.11
+  master         17.78   35.85    2.72     0.39  13.54  2.27  23.33   1.22
+  master-1.0      4.44   28.89    1.30     0.35   5.39  1.97  17.99   0.81
+  master-1.5      3.99   28.16    1.04     0.35   4.35  1.87  17.85   0.45
+
+The command
+
+  bash report.sh plot-rel master-1.0 real
+
+can be used the create a bar diagram for the results.  The plot is
+created by Python code in scripts/bardiagram.py and requires the
+matplotlib.
+
+Of course, you can use your own queries by using
+
+  sqlite3 results.sqlite
+

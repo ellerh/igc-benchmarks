@@ -1,20 +1,27 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
+
+print_usage() {
+    printf "Usage: %s [-h] [-b BENCHMARK] [-i ITERATIONS] EMACS\n" "$0"
+}
+
+help() {
+    print_usage
+    names=$(for b in ${DEFAULT_BENCHMARKS[@]}; do
+        printf '\t%s\n' $(basename -s .el "$b")
+    done)
+    printf 'Benchmarks:\n %s\n' "$names"
+    exit 1
+}
+
+usage() {
+    print_usage
+    exit 1
+}
 
 set -eu
 
-declare -a EMACSES=(
-    igc
-    wgc
-    master
-    master-0.75
-    master-1.0
-    master-1.5
-    #igc headerless
-    #master
-    #no-mps no-mps-headerless
-)
-
-declare -a ELFILES=(
+ITERATIONS=1
+DEFAULT_BENCHMARKS=(
     scroll
     boehm-gc
     hash-equal
@@ -23,83 +30,94 @@ declare -a ELFILES=(
     compile
     print
     primes
-    #primesv
-    #sumloop
     string
     taxicab
     pidigits
 )
+BENCHMARKS=()
 
-REPEAT=1
+while getopts b:i:h OPT; do
+    case $OPT in
+        b) BENCHMARKS+=($OPTARG) ;;
+        i) ITERATIONS=$OPTARG ;;
+        h) help ;;
+        \?)
+            echo "Invalid option: $OPTARG"
+            usage
+            ;;
+    esac
+done
+
+if [ ${#BENCHMARKS[@]} = 0 ]; then
+    for b in "${DEFAULT_BENCHMARKS[@]}"; do
+        BENCHMARKS+=($b)
+    done
+fi
+
+shift $(($OPTIND - 1))
+
+case $# in
+    1) EMACS="$1" ;;
+    *) usage ;;
+esac
+
 CSVFILE=results.csv
-#TRACETOOL=tracetool_stap
-TRACETOOL=tracetool_gnutime
+
+for file in "../emacses/$EMACS"; do
+    if [ ! -e $file ]; then
+        printf "No such file: $file\n"
+        exit 1
+    fi
+done
+
+for BENCHMARK in "${BENCHMARKS[@]}"; do
+    bash compile-benchmark.sh $EMACS $BENCHMARK || exit 2
+done
 
 ulimit -d $((512 * 1024))
 
-source cleanup.sh
+trap '{
+tmux -L gnutime kill-server
+rm gnutime-fifo
+echo "Interrupted  "
+exit 3
+}' INT
 
-for ELFILE in "${ELFILES[@]}"; do
-    "../emacses/${EMACSES[0]}" -Q -batch \
-        -eval "(byte-compile-file \"../elisp/$ELFILE.el\")" ||
-        exit 2
-done
-
-function quit_screen {
-    local screenpid="$1"
-    screen -r "$screenpid" -X quit
-}
-
-function tracetool_gnutime {
-    local output=$1 emacs=$2 benchmark=$3
-    shift 3
-    exec screen -D -m /usr/bin/time --output "$output" --append \
-        --format "$emacs,$benchmark,%e,%U,%S,%M,0,0" \
-        "$@"
-}
-
-function tracetool_stap {
-    local output=$1 emacs=$2 benchmark=$3
-    local features=$(../emacses/$emacs \
-        -Q -batch \
-        -eval '(princ system-configuration-features)')
-    local stpfile
-    case "$features" in
-        *\ MPS\ *) stpfile=bench-mps.stp ;;
-        *) stpfile=bench-master.stp ;;
-    esac
-    shift 3
-    local tmpfile=$(mktemp)
-    CLEANUP_ACTIONS+=("rm '$tmpfile'")
-    stap -c "$*" -o "$tmpfile" $stpfile "$emacs" "$benchmark"
-    cat "$tmpfile" >>"$output"
+gnutime() {
+    local output=$1 emacs=$2 benchmark=$3 args=$4
+    if tmux -L gnutime has-session 2>/dev/null; then
+        echo "existing tmux session (-L gnutime)"
+        tmux -L gnutime list-sessions
+        exit 3
+    fi
+    mkfifo gnutime-fifo
+    local cmd="/usr/bin/time \
+    --output '$output' --append \
+    --format '$emacs,$benchmark,%e,%U,%S,%M' $args \
+    ; echo \$? >gnutime-fifo"
+    tmux -L gnutime new-session -d "$cmd"
+    read -d '' ERR <gnutime-fifo
+    rm gnutime-fifo
+    return "$ERR"
 }
 
 if [ -e "$CSVFILE" ]; then
-    mv --backup=numbered "$CSVFILE" "$CSVFILE".old
+    mv --backup "$CSVFILE" "$CSVFILE".old
 fi
 
-printf "emacs,benchmark,\
-elapsed,user,sys,rss-max,\
-traced-time,ncollections\n" >"$CSVFILE"
+printf "emacs,benchmark,elapsed,user,sys,rss-max\n" >"$CSVFILE"
 
-for EMACS in "${EMACSES[@]}"; do
-    for ELFILE in "${ELFILES[@]}"; do
-        for I in $(seq $REPEAT); do
-            printf "$EMACS $ELFILE $I ..." >&2
-            $TRACETOOL "$CSVFILE" "$EMACS" "$ELFILE" \
-                "../emacses/$EMACS" -Q -nw \
-                -l "../elisp/${ELFILE}.elc" \
-                -f main &
-            CLEANUP_ACTIONS+=("screen -r $! -X quit")
-            SCREENPID=$!
-            wait $! || {
-                printf "Emacs failed %d" "$?" >&2
-                exit 3
-            }
-            printf "\r" >&2
-            unset CLEANUP_ACTIONS[-1]
-            tail -n1 "$CSVFILE" >&2
-        done
+for BENCHMARK in "${BENCHMARKS[@]}"; do
+    for I in $(seq $ITERATIONS); do
+        printf "$EMACS $BENCHMARK $I/$ITERATIONS ..." >&2
+        gnutime "$CSVFILE" "$EMACS" "$BENCHMARK" \
+            "../emacses/$EMACS -Q -nw \
+            -l ../elisp/${BENCHMARK}.elc \
+            -f main" || {
+            printf "Emacs failed $?\n" >&2
+            exit 3
+        }
+        printf "\r" >&2
+        tail -n1 "$CSVFILE" >&2
     done
 done

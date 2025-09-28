@@ -1,0 +1,5 @@
+#!/bin/sh
+
+EMACS_IGC_GENS='16000 0.5' \
+	exec $(dirname "$0")/igc \
+	--eval '(igc--set-pause-time 0.01)' "$@"
