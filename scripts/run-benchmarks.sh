@@ -33,6 +33,7 @@ DEFAULT_BENCHMARKS=(
     string
     taxicab
     pidigits
+    procfilter
 )
 BENCHMARKS=()
 
